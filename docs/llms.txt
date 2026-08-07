@@ -1,0 +1,11 @@
+# Brickbed
+
+> Brickbed is an alpha open-source JSON document database backed by a local directory or S3-compatible object storage.
+
+- [README](../README.md): project scope, quick start, packages, and development checks.
+- [Quickstart](quickstart.md): run a local server, push a schema, write, query, and search.
+- [HTTP API](http-api.md): REST routes, liveness/readiness, JSON conventions, document metadata, and errors.
+- [Schema and search](schema-and-search.md): validators, equality indexes, BM25, vectors, and hybrid search.
+- [Authentication](auth.md): API keys, JWT issuers, and collection rules.
+- [Configuration](configuration.md): server, S3-compatible storage, instance keys, and embeddings variables.
+- [Operating Brickbed](operating.md): single-writer deployment, Docker, backups, and alpha limits.

@@ -1,0 +1,43 @@
+{
+  "name": "@brickbed/schema",
+  "version": "0.0.1",
+  "description": "Schema definition helpers for the Brickbed document database",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node && tsc --emitDeclarationOnly",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "publish": "bun run build && npm publish --access public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brickbed/brickbed.git",
+    "directory": "schemas/typescript"
+  },
+  "homepage": "https://brickbed.dev",
+  "bugs": {
+    "url": "https://github.com/brickbed/brickbed/issues"
+  },
+  "keywords": [
+    "brickbed",
+    "schema",
+    "validation",
+    "database",
+    "typescript"
+  ],
+  "author": "Brickbed",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^5.3.0"
+  }
+}

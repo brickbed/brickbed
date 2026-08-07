@@ -1,0 +1,35 @@
+# Rust
+server/target/
+**/*.rs.bk
+
+# JavaScript and TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+.next/
+out/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local data and configuration
+server/data/
+data/
+.env
+.env.local
+.env.*.local
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
