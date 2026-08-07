@@ -400,7 +400,7 @@ pub fn validate_doc(schema: &CollectionSchema, data: &Map<String, Value>) -> Res
         if is_server_filled(validator) && matches!(value, None | Some(Value::Null)) {
             continue;
         }
-        validate_value(field, validator, value).map_err(|msg| AppError::Validation(msg))?;
+        validate_value(field, validator, value).map_err(AppError::Validation)?;
     }
     Ok(())
 }

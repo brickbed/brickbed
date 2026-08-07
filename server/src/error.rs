@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 
 tokio::task_local! {
     pub(crate) static REQUEST_ID: String;
@@ -254,6 +254,7 @@ impl IntoResponse for AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn registry_serializes_stable_codes() {
