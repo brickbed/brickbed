@@ -9,6 +9,11 @@ repository = "https://github.com/brickbed/brickbed"
 homepage = "https://brickbed.dev"
 readme = "../README.md"
 
+[lints.clippy]
+# This style-only lint changed defaults across supported Clippy releases and
+# otherwise makes the MSRV job disagree with newer local toolchains.
+uninlined_format_args = "allow"
+
 [dependencies]
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
