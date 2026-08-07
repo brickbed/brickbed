@@ -51,13 +51,13 @@ impl Db {
     ) -> Result<Vec<(String, f64)>, AppError> {
         let sidx = match index_name {
             Some(name) => coll_schema.search_index(name).ok_or_else(|| {
-                AppError::BadRequest(format!(
+                AppError::Schema(format!(
                     "unknown search index {:?} on {:?}",
                     name, collection
                 ))
             })?,
             None => coll_schema.search_indexes.first().ok_or_else(|| {
-                AppError::BadRequest(format!("collection {:?} has no search index", collection))
+                AppError::Schema(format!("collection {:?} has no search index", collection))
             })?,
         };
 
@@ -130,18 +130,18 @@ impl Db {
     ) -> Result<(&'a VectorIndexDef, Vec<(String, f64)>), AppError> {
         let vidx = match index_name {
             Some(name) => coll_schema.vector_index(name).ok_or_else(|| {
-                AppError::BadRequest(format!(
+                AppError::Schema(format!(
                     "unknown vector index {:?} on {:?}",
                     name, collection
                 ))
             })?,
             None => coll_schema.vector_indexes.first().ok_or_else(|| {
-                AppError::BadRequest(format!("collection {:?} has no vector index", collection))
+                AppError::Schema(format!("collection {:?} has no vector index", collection))
             })?,
         };
 
         if query.len() != vidx.dims as usize {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::Validation(format!(
                 "vector has {} dimensions, index {:?} expects {}",
                 query.len(),
                 vidx.name,
@@ -173,12 +173,16 @@ impl Db {
             limit,
         } = params;
 
-        let schema = self
-            .get_schema(project)
-            .await?
-            .ok_or_else(|| AppError::BadRequest("no schema pushed for project".to_string()))?;
+        let schema = self.get_schema(project).await?.ok_or_else(|| {
+            AppError::Schema(
+                "no schema pushed for project; push a schema before searching".to_string(),
+            )
+        })?;
         let coll_schema = schema.collection(collection).ok_or_else(|| {
-            AppError::BadRequest(format!("collection {:?} not in schema", collection))
+            AppError::Schema(format!(
+                "collection {:?} is not declared in the project schema",
+                collection
+            ))
         })?;
 
         // Resolve the filter before retrieving: one naming an index that does
@@ -186,7 +190,7 @@ impl Db {
         let filter = match filter {
             Some(f) => {
                 let idx = coll_schema.index(f.index).ok_or_else(|| {
-                    AppError::BadRequest(format!(
+                    AppError::Schema(format!(
                         "unknown filter index {:?} on {:?}",
                         f.index, collection
                     ))

@@ -37,6 +37,24 @@ fetched = await db.collection("posts").get(post["_id"])
 result = await db.collection("posts").list(limit=10)
 ```
 
+# Error handling
+
+`BrickbedError` exposes `status`, stable `code`, human `message`, optional
+safe `details`, `request_id`, and raw `body`. Branch on `code`, not the text
+of `message`; unknown future codes remain strings.
+
+```python
+from brickbed import BrickbedError
+
+try:
+    await posts.query("by_status", {"status": "published"}, cursor="bad")
+except BrickbedError as error:
+    if error.code == "invalid_cursor":
+        print(error.request_id)
+```
+
+See the [HTTP error contract](../../docs/http-api.md#errors) for every code.
+
 ## License
 
 MIT

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 import httpx
@@ -31,7 +33,7 @@ class Collection:
         )
 
         if not response.is_success:
-            raise BrickbedError(response.status_code, response.text)
+            raise BrickbedError.from_response(response)
 
         if response.status_code == 204:
             return None

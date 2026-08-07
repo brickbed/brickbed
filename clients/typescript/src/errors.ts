@@ -1,40 +1,99 @@
+export type BrickbedErrorDetails = Record<string, unknown>;
+
+/** Known error codes in Brickbed's v1 HTTP error contract. */
+export type KnownBrickbedErrorCode =
+  | "invalid_request"
+  | "validation_failed"
+  | "schema_invalid"
+  | "invalid_cursor"
+  | "conflict"
+  | "idempotency_conflict"
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "limit_exceeded"
+  | "rate_limited"
+  | "unavailable"
+  | "embedding_provider_error"
+  | "internal_error";
+
+/**
+ * A string rather than a closed union so a newer server code is preserved for
+ * callers instead of being erased or turned into a parsing failure.
+ */
+export type BrickbedErrorCode = KnownBrickbedErrorCode | (string & {});
+
 export class BrickbedError extends Error {
   constructor(
     public readonly status: number,
-    public readonly body: string,
-    detail?: string
+    /** Stable machine contract. Branch on this, never on `message`. */
+    public readonly code: BrickbedErrorCode,
+    /** Human-actionable explanation; wording may change between releases. */
+    message: string,
+    public readonly details: BrickbedErrorDetails | undefined,
+    public readonly requestId: string | undefined,
+    /** Raw body retained for proxy/intermediary diagnostics. */
+    public readonly body: string
   ) {
-    super(`Brickbed error (${status}): ${detail ?? body}`);
+    super(`Brickbed error (${status}, ${code}): ${message}`);
     this.name = "BrickbedError";
   }
 }
 
-/**
- * The server wraps every error in JSON (`{"error": "..."}`), including
- * body-rejection 422s, but the body is still parsed opportunistically so an
- * intermediary answering with plain text (a proxy, say) degrades gracefully.
- */
-export async function errorFromResponse(res: Response): Promise<BrickbedError> {
-  const body = await res.text().catch(() => "");
-  const detail = errorMessage(body) || body || res.statusText || "request failed";
-  return new BrickbedError(res.status, body, detail);
+interface ErrorEnvelope {
+  error?: unknown;
+  requestId?: unknown;
 }
 
-function errorMessage(body: string): string | undefined {
-  let parsed: unknown;
+function object(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/** Parse the v1 envelope while retaining compatibility with old/proxy bodies. */
+function parseError(body: string): {
+  code: BrickbedErrorCode;
+  message?: string;
+  details?: BrickbedErrorDetails;
+  requestId?: string;
+} {
+  let parsed: ErrorEnvelope | undefined;
   try {
-    parsed = JSON.parse(body);
+    parsed = JSON.parse(body) as ErrorEnvelope;
   } catch {
-    return undefined;
+    return { code: "http_error" };
   }
-  if (typeof parsed !== "object" || parsed === null) {
-    return undefined;
-  }
-  const { error, message } = parsed as { error?: unknown; message?: unknown };
-  if (typeof error === "string") {
-    return error;
-  }
-  return typeof message === "string" ? message : undefined;
+
+  const error = object(parsed?.error);
+  const code = typeof error?.code === "string" ? error.code : "http_error";
+  // Accept the pre-v1 `{ error: string }` body for callers talking to an old
+  // server, but do not pretend it supplied a stable machine code.
+  const legacy = typeof parsed?.error === "string" ? parsed.error : undefined;
+  return {
+    code,
+    message: typeof error?.message === "string" ? error.message : legacy,
+    details: object(error?.details),
+    requestId: typeof parsed?.requestId === "string" ? parsed.requestId : undefined,
+  };
+}
+
+function responseRequestId(res: Response, envelope?: string): string | undefined {
+  return envelope ?? res.headers.get("x-request-id") ?? undefined;
+}
+
+export async function errorFromResponse(res: Response): Promise<BrickbedError> {
+  const body = await res.text().catch(() => "");
+  const parsed = parseError(body);
+  const message = parsed.message || body || res.statusText || "request failed";
+  return new BrickbedError(
+    res.status,
+    parsed.code,
+    message,
+    parsed.details,
+    responseRequestId(res, parsed.requestId),
+    body
+  );
 }
 
 /**
@@ -52,5 +111,12 @@ export async function parseJson<R>(res: Response): Promise<R> {
   } catch {
     // Falls through to the error below with the body attached.
   }
-  throw new BrickbedError(res.status, text, "expected a JSON response body");
+  throw new BrickbedError(
+    res.status,
+    "invalid_response",
+    "expected a JSON response body",
+    undefined,
+    res.headers.get("x-request-id") ?? undefined,
+    text
+  );
 }

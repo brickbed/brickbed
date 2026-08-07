@@ -102,6 +102,18 @@ async fn send(
     (status, value)
 }
 
+fn error_message(body: &Value) -> &str {
+    body["error"]["message"]
+        .as_str()
+        .unwrap_or_else(|| panic!("missing v1 error message: {}", body))
+}
+
+fn error_code(body: &Value) -> &str {
+    body["error"]["code"]
+        .as_str()
+        .unwrap_or_else(|| panic!("missing v1 error code: {}", body))
+}
+
 fn schema_body() -> Value {
     json!({
         "collections": {
@@ -343,7 +355,7 @@ async fn reserved_document_fields_are_rejected_without_corrupting_data() {
             .insert(field.to_string(), json!(1));
         let (status, error) = send(&app, "POST", &base, Some(KEY), Some(body)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "accepted {field}");
-        assert!(error["error"].as_str().unwrap().contains("reserved"));
+        assert!(error_message(&error).contains("reserved"));
     }
 
     let (status, created) = send(
@@ -371,7 +383,7 @@ async fn reserved_document_fields_are_rejected_without_corrupting_data() {
             StatusCode::BAD_REQUEST,
             "{method} accepted metadata"
         );
-        assert!(error["error"].as_str().unwrap().contains("reserved"));
+        assert!(error_message(&error).contains("reserved"));
     }
 
     let (status, fetched) = send(&app, "GET", &format!("{}/{}", base, id), Some(KEY), None).await;
@@ -394,7 +406,7 @@ async fn schema_cannot_declare_reserved_document_fields() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(error["error"].as_str().unwrap().contains("reserved"));
+    assert!(error_message(&error).contains("reserved"));
 }
 
 #[tokio::test]
@@ -1136,7 +1148,7 @@ async fn vector_dims_are_validated() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("dimensions"),
+        error_message(&err).contains("dimensions"),
         "error: {}",
         err["error"]
     );
@@ -1165,7 +1177,7 @@ async fn vector_dims_are_validated() {
     let (status, err) = search(&app, json!({"vector": [1.0, 0.0]})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("2 dimensions"),
+        error_message(&err).contains("2 dimensions"),
         "error: {}",
         err["error"]
     );
@@ -1289,7 +1301,7 @@ async fn schema_push_backfills_vector_index() {
     let (status, err) = search(&app, query).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("no vector index"),
+        error_message(&err).contains("no vector index"),
         "error: {}",
         err["error"]
     );
@@ -1409,7 +1421,7 @@ async fn hybrid_needs_both_index_kinds_and_both_inputs() {
     let (status, err) = search(&app, hybrid.clone()).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("no vector index"),
+        error_message(&err).contains("no vector index"),
         "error: {}",
         err["error"]
     );
@@ -1421,7 +1433,7 @@ async fn hybrid_needs_both_index_kinds_and_both_inputs() {
     let (status, err) = search(&app, hybrid).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("no search index"),
+        error_message(&err).contains("no search index"),
         "error: {}",
         err["error"]
     );
@@ -1434,7 +1446,7 @@ async fn hybrid_needs_both_index_kinds_and_both_inputs() {
     ] {
         let (status, err) = search(&app, body).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
-        let message = err["error"].as_str().unwrap();
+        let message = error_message(&err);
         assert!(message.contains("hybrid"), "error: {}", message);
         assert!(message.contains(missing), "error: {}", message);
     }
@@ -1460,7 +1472,7 @@ async fn hybrid_selects_an_index_per_arm() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("ambiguous"),
+        error_message(&err).contains("ambiguous"),
         "error: {}",
         err["error"]
     );
@@ -1494,7 +1506,7 @@ async fn hybrid_selects_an_index_per_arm() {
         let (status, err) = search(&app, body).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(
-            err["error"].as_str().unwrap().contains(expected),
+            error_message(&err).contains(expected),
             "error: {}",
             err["error"]
         );
@@ -1638,7 +1650,7 @@ async fn filter_rejects_malformed_and_unusable_predicates() {
         let (status, err) = search(&app, json!({"query": "rust", "filter": filter})).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "filter: {}", filter);
         assert!(
-            err["error"].as_str().unwrap().contains(expected),
+            error_message(&err).contains(expected),
             "filter: {}, error: {}",
             filter,
             err["error"]
@@ -1986,11 +1998,13 @@ async fn provider_failure_is_502_and_persists_nothing() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(error_code(&err), "embedding_provider_error");
     assert!(
-        err["error"].as_str().unwrap().contains("provider is down"),
+        error_message(&err).contains("embedding provider request failed"),
         "error: {}",
         err["error"]
     );
+    assert!(!error_message(&err).contains("provider is down"));
 
     let (status, listed) = send(&app, "GET", &base, Some(KEY), None).await;
     assert_eq!(status, StatusCode::OK);
@@ -2108,7 +2122,7 @@ async fn schema_rejects_unusable_embed_sources() {
         let (status, err) = push(with_embedding(embedding.clone())).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "embedding: {}", embedding);
         assert!(
-            err["error"].as_str().unwrap().contains(expected),
+            error_message(&err).contains(expected),
             "embedding: {}, error: {}",
             embedding,
             err["error"]
@@ -2772,9 +2786,16 @@ async fn malformed_bodies_come_back_as_json_errors() {
             path,
             status
         );
+        assert_eq!(
+            error_code(&err),
+            "invalid_request",
+            "path {}: {}",
+            path,
+            err
+        );
         assert!(
-            err["error"].is_string(),
-            "path {} did not use the JSON error shape: {}",
+            err["requestId"].as_str().is_some(),
+            "path {}: {}",
             path,
             err
         );
@@ -2799,7 +2820,44 @@ async fn malformed_bodies_come_back_as_json_errors() {
         )
     });
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(parsed["error"].is_string(), "body: {}", parsed);
+    assert_eq!(error_code(&parsed), "invalid_request", "body: {}", parsed);
+    assert!(parsed["requestId"].as_str().is_some(), "body: {}", parsed);
+}
+
+#[tokio::test]
+async fn errors_have_a_safe_request_id_and_v1_contract() {
+    let (app, _dir) = test_app().await;
+    let supplied = "client-request-123";
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/testproj/posts/missing")
+        .header("Authorization", format!("Bearer {}", KEY))
+        .header("X-Request-Id", supplied)
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(res.headers()["x-request-id"], supplied);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(error_code(&body), "not_found");
+    assert_eq!(body["requestId"], supplied);
+    assert!(body["error"].get("details").is_none());
+
+    // A value containing unsafe characters is not reflected into the response
+    // or logs. The generated ULID is bounded and has no caller-controlled text.
+    let req = Request::builder()
+        .method("GET")
+        .uri("/does-not-exist")
+        .header("Authorization", format!("Bearer {}", KEY))
+        .header("X-Request-Id", "bad request id")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    let generated = res.headers()["x-request-id"].to_str().unwrap();
+    assert_ne!(generated, "bad request id");
+    assert!(generated.bytes().all(|byte| byte.is_ascii_alphanumeric()));
 }
 
 #[tokio::test]
@@ -3423,7 +3481,7 @@ async fn owner_rules_cannot_match_on_a_server_filled_field() {
     let (status, err) = send(&app, "PUT", &path, Some("admin-key"), Some(schema)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"].as_str().unwrap().contains("server-filled"),
+        error_message(&err).contains("server-filled"),
         "error: {}",
         err["error"]
     );

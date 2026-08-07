@@ -228,9 +228,8 @@ pub async fn health() -> Json<HealthResponse> {
 pub async fn ready(State(state): State<Arc<AppState>>) -> Result<Json<HealthResponse>, AppError> {
     if let Err(error) = state.db.health_check().await {
         tracing::error!(%error, "database readiness check failed");
-        return Err(AppError::Rejection(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "not ready".to_string(),
+        return Err(AppError::Unavailable(
+            "database readiness check failed".to_string(),
         ));
     }
     Ok(Json(HealthResponse {
@@ -467,7 +466,7 @@ pub async fn put_schema(
     AppJson(schema): AppJson<ProjectSchema>,
 ) -> Result<Json<ProjectSchema>, AppError> {
     if !crate::validate::valid_name(&project) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::Validation(format!(
             "invalid project name: {:?}",
             project
         )));
