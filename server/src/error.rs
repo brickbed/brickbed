@@ -45,6 +45,27 @@ pub enum ErrorCode {
     InternalError,
 }
 
+impl ErrorCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidRequest => "invalid_request",
+            Self::ValidationFailed => "validation_failed",
+            Self::SchemaInvalid => "schema_invalid",
+            Self::InvalidCursor => "invalid_cursor",
+            Self::Conflict => "conflict",
+            Self::IdempotencyConflict => "idempotency_conflict",
+            Self::Unauthorized => "unauthorized",
+            Self::Forbidden => "forbidden",
+            Self::NotFound => "not_found",
+            Self::LimitExceeded => "limit_exceeded",
+            Self::RateLimited => "rate_limited",
+            Self::Unavailable => "unavailable",
+            Self::EmbeddingProviderError => "embedding_provider_error",
+            Self::InternalError => "internal_error",
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ErrorBody {
@@ -122,6 +143,18 @@ impl From<crate::rules::RuleError> for AppError {
 }
 
 impl AppError {
+    /// Safe, fixed failure classifications for logs. Never pass the source
+    /// error to `tracing`: database paths and provider bodies can contain
+    /// secrets or document content.
+    fn safe_log_context(&self) -> Option<&'static str> {
+        match self {
+            Self::Internal(_) => Some("internal_failure"),
+            Self::Unavailable(_) => Some("service_unavailable"),
+            Self::Embedding(_) => Some("embedding_provider_failure"),
+            _ => None,
+        }
+    }
+
     fn public_parts(&self) -> (StatusCode, ErrorCode, String, Option<Map<String, Value>>) {
         match self {
             Self::NotFound => (StatusCode::NOT_FOUND, ErrorCode::NotFound, "not found".into(), None),
@@ -227,15 +260,10 @@ impl AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let request_id = request_id();
-        // Only internal/server-facing messages are logged. They are never
-        // inserted in a public envelope, including provider response bodies.
-        match &self {
-            Self::Internal(message) | Self::Unavailable(message) | Self::Embedding(message) => {
-                tracing::error!(%request_id, error = %message, "request failed");
-            }
-            _ => {}
-        }
         let (status, code, message, details) = self.public_parts();
+        if let Some(failure) = self.safe_log_context() {
+            tracing::error!(%request_id, error_code = code.as_str(), failure, "request failed");
+        }
         (
             status,
             Json(ErrorEnvelope {
@@ -361,6 +389,25 @@ mod tests {
             assert!(!message.contains("secret"));
             assert!(!message.contains("/private"));
             assert!(details.is_none());
+        }
+    }
+
+    #[test]
+    fn sensitive_failures_have_only_fixed_safe_log_context() {
+        let secret = "provider body: api_key=secret bucket=/private document=customer";
+        for (error, expected) in [
+            (AppError::Internal(secret.into()), "internal_failure"),
+            (AppError::Unavailable(secret.into()), "service_unavailable"),
+            (
+                AppError::Embedding(secret.into()),
+                "embedding_provider_failure",
+            ),
+        ] {
+            let context = error.safe_log_context().expect("sensitive failure logs");
+            assert_eq!(context, expected);
+            assert!(!context.contains("secret"));
+            assert!(!context.contains("/private"));
+            assert!(!context.contains("customer"));
         }
     }
 
