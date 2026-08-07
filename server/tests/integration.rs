@@ -458,10 +458,7 @@ async fn schema_validation_on_write() {
     // Missing required field (first failure in field order is reported).
     let (status, err) = send(&app, "POST", &base, Some(KEY), Some(json!({"slug": "x"}))).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(err["error"]
-        .as_str()
-        .unwrap()
-        .contains("missing required field"));
+    assert!(error_message(&err).contains("missing required field"));
 
     // Wrong union variant.
     let mut bad = post_doc("x", "archived", None);
@@ -1019,10 +1016,7 @@ async fn search_rejects_unknown_index_and_missing_schema() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(err["error"]
-        .as_str()
-        .unwrap()
-        .contains("unknown search index"));
+    assert!(error_message(&err).contains("unknown search index"));
 
     // An equality index is not a search index.
     let (status, _) = send(
@@ -1319,10 +1313,7 @@ async fn search_rejects_unknown_vector_index_and_unsupported_modes() {
     let (status, err) = search(&app, json!({"vector": vector, "index": "nope"})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"]
-            .as_str()
-            .unwrap()
-            .contains("unknown vector index"),
+        error_message(&err).contains("unknown vector index"),
         "error: {}",
         err["error"]
     );
@@ -1520,10 +1511,7 @@ async fn hybrid_selects_an_index_per_arm() {
         let (status, err) = search(&app, body).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(
-            err["error"]
-                .as_str()
-                .unwrap()
-                .contains("only applies to hybrid"),
+            error_message(&err).contains("only applies to hybrid"),
             "error: {}",
             err["error"]
         );
@@ -2136,10 +2124,7 @@ async fn schema_rejects_unusable_embed_sources() {
     let (status, err) = push(schema).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(
-        err["error"]
-            .as_str()
-            .unwrap()
-            .contains("only applies to a vector field"),
+        error_message(&err).contains("only applies to a vector field"),
         "error: {}",
         err["error"]
     );
