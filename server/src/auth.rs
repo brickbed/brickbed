@@ -39,6 +39,14 @@ fn resolve_api_key(state: &AppState, token: &str) -> Option<String> {
     }
 }
 
+/// Opaque bearer values are API-key candidates only. They must not enter the
+/// end-user lookup path, which can read the schema and contact a provider.
+fn require_jwt_shape(token: &str) -> Result<(), AppError> {
+    jwt::looks_like_jwt(token)
+        .then_some(())
+        .ok_or(AppError::Unauthorized)
+}
+
 /// Verify a JWT against the project's configured providers.
 async fn resolve_end_user(
     state: &AppState,
@@ -127,13 +135,41 @@ pub async fn require_auth(
                 }
                 Principal::ApiKey { project: granted }
             }
-            None if jwt::looks_like_jwt(&token) => {
+            None => {
+                require_jwt_shape(&token)?;
                 resolve_end_user(&state, &project, &token).await?
             }
-            None => return Err(AppError::Unauthorized),
         },
     };
 
     req.extensions_mut().insert(principal);
     Ok(next.run(req).await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_key_parser_keeps_only_complete_entries() {
+        let parsed = parse_api_keys("key-a:project-a,key-b:*, :project,key:,missing-colon,:");
+        assert_eq!(
+            parsed,
+            HashMap::from([
+                ("key-a".to_string(), "project-a".to_string()),
+                ("key-b".to_string(), "*".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn only_jwt_shaped_bearers_reach_end_user_authentication() {
+        assert!(require_jwt_shape("eyJhbGciOiJSUzI1NiJ9.payload.signature").is_ok());
+        for opaque in ["opaque", "a.b", "bad.payload.signature"] {
+            assert!(matches!(
+                require_jwt_shape(opaque),
+                Err(AppError::Unauthorized)
+            ));
+        }
+    }
 }

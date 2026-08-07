@@ -491,6 +491,15 @@ mod tests {
     }
 
     #[test]
+    fn parses_a_single_per_operation_write_rule() {
+        let parsed = rules(json!({"write": {"create": "authenticated"}}));
+        let write = parsed.write.as_ref().unwrap();
+        assert_eq!(write.for_op(Op::Create), Some(&Rule::Authenticated));
+        assert_eq!(write.for_op(Op::Update), None);
+        assert_eq!(write.for_op(Op::Delete), None);
+    }
+
+    #[test]
     fn rejects_unknown_and_malformed_rules() {
         for bad in [
             json!({"read": "everyone"}),

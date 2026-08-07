@@ -317,4 +317,25 @@ mod tests {
         let extra = json!({"status": "published", "other": 1});
         assert!(bound_fields(&index, extra.as_object().unwrap()).is_err());
     }
+
+    #[test]
+    fn index_key_namespace_and_numeric_encoding_are_stable() {
+        assert_eq!(
+            index_base("proj", "posts", "by_status"),
+            b"_idx:proj:posts:by_status:"
+        );
+        assert_eq!(project_index_prefix("proj"), b"_idx:proj:");
+
+        let cases = [
+            (-1.0, b"f400fffffffffffff".as_slice()),
+            (-0.0, b"f7fffffffffffffff".as_slice()),
+            (0.0, b"f8000000000000000".as_slice()),
+            (1.0, b"fbff0000000000000".as_slice()),
+        ];
+        for (number, expected) in cases {
+            let mut encoded = Vec::new();
+            encode_value(Some(&json!(number)), &mut encoded);
+            assert_eq!(encoded, expected, "unexpected encoding for {number:?}");
+        }
+    }
 }

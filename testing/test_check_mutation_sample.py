@@ -78,7 +78,24 @@ class MutationSampleTests(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("expired mutation allowlist entries", output)
 
-    def test_mutation_script_creates_a_missing_output_parent(self) -> None:
+    def test_allowlist_unescapes_a_mutant_name_with_a_pipe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            allowlist = Path(temporary) / "allowlist.md"
+            allowlist.write_text(
+                "| Mutant | Reason | Tracking issue | Expires |\n"
+                "| --- | --- | --- | --- |\n"
+                "| replace ^ with \\| in encode_value | Equivalent: sign bit is zero | #8 | 2099-01-01 |\n",
+                encoding="utf-8",
+            )
+
+            entries = CHECK.allowlisted_mutants(allowlist)
+
+        self.assertEqual(
+            entries,
+            {"replace ^ with | in encode_value": CHECK.dt.date(2099, 1, 1)},
+        )
+
+    def test_mutation_script_reads_the_v27_nested_output_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fake_bin = root / "bin"
@@ -93,9 +110,9 @@ class MutationSampleTests(unittest.TestCase):
                 "  if [[ $1 == --output ]]; then output=$2; shift 2; else shift; fi\n"
                 "done\n"
                 "[[ -d $(dirname \"$output\") ]] || exit 88\n"
-                "mkdir \"$output\"\n"
-                "printf '%s' '{\"end_time\":\"2026-08-08T00:00:00Z\",\"caught\":1,\"missed\":0,\"timeout\":0,\"unviable\":0,\"outcomes\":[{\"scenario\":\"Baseline\",\"summary\":\"Success\"}]}' > \"$output/outcomes.json\"\n"
-                ": > \"$output/missed.txt\"\n",
+                "mkdir -p \"$output/mutants.out\"\n"
+                "printf '%s' '{\"end_time\":\"2026-08-08T00:00:00Z\",\"caught\":1,\"missed\":0,\"timeout\":0,\"unviable\":0,\"outcomes\":[{\"scenario\":\"Baseline\",\"summary\":\"Success\"}]}' > \"$output/mutants.out/outcomes.json\"\n"
+                ": > \"$output/mutants.out/missed.txt\"\n",
                 encoding="utf-8",
             )
             cargo.chmod(0o755)

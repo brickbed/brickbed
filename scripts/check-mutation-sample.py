@@ -10,18 +10,38 @@ import re
 from pathlib import Path
 
 
-ALLOWLIST_ROW = re.compile(
-    r"^\|\s*(?P<mutant>.*?)\s*\|\s*(?P<reason>.*?)\s*\|\s*(?P<issue>.*?)\s*\|\s*(?P<expires>.*?)\s*\|\s*$"
-)
+def markdown_cells(line: str) -> list[str] | None:
+    """Split one Markdown table row, preserving escaped literal pipes."""
+    line = line.strip()
+    if not line.startswith("|") or not line.endswith("|"):
+        return None
+    cells: list[str] = []
+    cell: list[str] = []
+    escaped = False
+    for char in line[1:-1]:
+        if escaped:
+            cell.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == "|":
+            cells.append("".join(cell).strip())
+            cell = []
+        else:
+            cell.append(char)
+    if escaped:
+        cell.append("\\")
+    cells.append("".join(cell).strip())
+    return cells
 
 
 def allowlisted_mutants(path: Path) -> dict[str, dt.date]:
     result: dict[str, dt.date] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
-        match = ALLOWLIST_ROW.match(line)
-        if not match:
+        cells = markdown_cells(line)
+        if cells is None or len(cells) != 4:
             continue
-        row = {key: value.strip() for key, value in match.groupdict().items()}
+        row = dict(zip(("mutant", "reason", "issue", "expires"), cells))
         if row["mutant"] in {"Mutant", "_None_"} or set(row["mutant"]) <= {"-", ":"}:
             continue
         if not row["reason"].startswith("Equivalent:"):
