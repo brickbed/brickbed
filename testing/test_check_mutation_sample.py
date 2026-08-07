@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -75,6 +77,44 @@ class MutationSampleTests(unittest.TestCase):
 
         self.assertEqual(status, 1)
         self.assertIn("expired mutation allowlist entries", output)
+
+    def test_mutation_script_creates_a_missing_output_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            output_dir = root / "missing" / "parent" / "mutants"
+            cargo = fake_bin / "cargo"
+            cargo.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "output=\n"
+                "while (($#)); do\n"
+                "  if [[ $1 == --output ]]; then output=$2; shift 2; else shift; fi\n"
+                "done\n"
+                "[[ -d $(dirname \"$output\") ]] || exit 88\n"
+                "mkdir \"$output\"\n"
+                "printf '%s' '{\"end_time\":\"2026-08-08T00:00:00Z\",\"caught\":1,\"missed\":0,\"timeout\":0,\"unviable\":0,\"outcomes\":[{\"scenario\":\"Baseline\",\"summary\":\"Success\"}]}' > \"$output/outcomes.json\"\n"
+                ": > \"$output/missed.txt\"\n",
+                encoding="utf-8",
+            )
+            cargo.chmod(0o755)
+            environment = os.environ | {
+                "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+                "MUTANTS_OUTPUT_DIR": str(output_dir),
+            }
+
+            result = subprocess.run(
+                ["bash", str(ROOT / "scripts" / "mutation-sample.sh")],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Mutation sample: 1 caught", result.stdout)
 
 
 if __name__ == "__main__":

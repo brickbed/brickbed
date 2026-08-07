@@ -7,6 +7,7 @@ cd "$repo_root/server"
 
 output_dir="${MUTANTS_OUTPUT_DIR:-$repo_root/coverage/mutants}"
 rm -rf "$output_dir"
+mkdir -p "$(dirname "$output_dir")"
 set +e
 cargo mutants \
   --file src/index.rs \
