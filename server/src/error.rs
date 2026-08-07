@@ -270,20 +270,76 @@ mod tests {
     #[test]
     fn every_error_variant_has_a_stable_public_status_and_code() {
         let cases = [
-            (AppError::BadRequest("bad".into()), StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest),
-            (AppError::Validation("bad".into()), StatusCode::BAD_REQUEST, ErrorCode::ValidationFailed),
-            (AppError::Schema("bad".into()), StatusCode::BAD_REQUEST, ErrorCode::SchemaInvalid),
-            (AppError::InvalidCursor("bad".into()), StatusCode::BAD_REQUEST, ErrorCode::InvalidCursor),
-            (AppError::Conflict("bad".into()), StatusCode::CONFLICT, ErrorCode::Conflict),
-            (AppError::IdempotencyConflict("bad".into()), StatusCode::CONFLICT, ErrorCode::IdempotencyConflict),
-            (AppError::Limit("bad".into()), StatusCode::PAYLOAD_TOO_LARGE, ErrorCode::LimitExceeded),
-            (AppError::RateLimited("bad".into()), StatusCode::TOO_MANY_REQUESTS, ErrorCode::RateLimited),
-            (AppError::Unavailable("bad".into()), StatusCode::SERVICE_UNAVAILABLE, ErrorCode::Unavailable),
-            (AppError::Embedding("bad".into()), StatusCode::BAD_GATEWAY, ErrorCode::EmbeddingProviderError),
-            (AppError::Internal("bad".into()), StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::InternalError),
-            (AppError::NotFound, StatusCode::NOT_FOUND, ErrorCode::NotFound),
-            (AppError::Unauthorized, StatusCode::UNAUTHORIZED, ErrorCode::Unauthorized),
-            (AppError::Forbidden, StatusCode::FORBIDDEN, ErrorCode::Forbidden),
+            (
+                AppError::BadRequest("bad".into()),
+                StatusCode::BAD_REQUEST,
+                ErrorCode::InvalidRequest,
+            ),
+            (
+                AppError::Validation("bad".into()),
+                StatusCode::BAD_REQUEST,
+                ErrorCode::ValidationFailed,
+            ),
+            (
+                AppError::Schema("bad".into()),
+                StatusCode::BAD_REQUEST,
+                ErrorCode::SchemaInvalid,
+            ),
+            (
+                AppError::InvalidCursor("bad".into()),
+                StatusCode::BAD_REQUEST,
+                ErrorCode::InvalidCursor,
+            ),
+            (
+                AppError::Conflict("bad".into()),
+                StatusCode::CONFLICT,
+                ErrorCode::Conflict,
+            ),
+            (
+                AppError::IdempotencyConflict("bad".into()),
+                StatusCode::CONFLICT,
+                ErrorCode::IdempotencyConflict,
+            ),
+            (
+                AppError::Limit("bad".into()),
+                StatusCode::PAYLOAD_TOO_LARGE,
+                ErrorCode::LimitExceeded,
+            ),
+            (
+                AppError::RateLimited("bad".into()),
+                StatusCode::TOO_MANY_REQUESTS,
+                ErrorCode::RateLimited,
+            ),
+            (
+                AppError::Unavailable("bad".into()),
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorCode::Unavailable,
+            ),
+            (
+                AppError::Embedding("bad".into()),
+                StatusCode::BAD_GATEWAY,
+                ErrorCode::EmbeddingProviderError,
+            ),
+            (
+                AppError::Internal("bad".into()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorCode::InternalError,
+            ),
+            (
+                AppError::NotFound,
+                StatusCode::NOT_FOUND,
+                ErrorCode::NotFound,
+            ),
+            (
+                AppError::Unauthorized,
+                StatusCode::UNAUTHORIZED,
+                ErrorCode::Unauthorized,
+            ),
+            (
+                AppError::Forbidden,
+                StatusCode::FORBIDDEN,
+                ErrorCode::Forbidden,
+            ),
         ];
         for (error, status, code) in cases {
             let (actual_status, actual_code, _, details) = error.public_parts();
