@@ -134,6 +134,12 @@ async fn send(app: &Router, method: &str, path: &str, body: Option<Value>) -> (S
     (status, value)
 }
 
+fn error_message(body: &Value) -> &str {
+    body["error"]["message"]
+        .as_str()
+        .unwrap_or_else(|| panic!("missing v1 error message: {}", body))
+}
+
 fn embed_schema() -> Value {
     json!({
         "collections": {
@@ -297,12 +303,16 @@ async fn a_provider_error_is_surfaced_as_502_without_the_key() {
     .await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
 
-    let message = err["error"].as_str().unwrap();
-    assert!(message.contains("401"), "message: {}", message);
+    let message = error_message(&err);
+    assert!(
+        message.contains("embedding provider request failed"),
+        "message: {}",
+        message
+    );
     assert!(
         !message.contains(PROVIDER_KEY),
         "the key came back in the provider's body and must be scrubbed: {}",
         message
     );
-    assert!(message.contains("[redacted]"), "message: {}", message);
+    assert!(!message.contains("[redacted]"), "message: {}", message);
 }

@@ -4,7 +4,7 @@ use std::env;
 use crate::auth::parse_api_keys;
 use crate::keybroker::{KeyBroker, DEFAULT_INSTANCE_NAME};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum StorageBackend {
     /// Local filesystem storage (for development)
     Local { path: String },
@@ -18,6 +18,16 @@ pub enum StorageBackend {
     },
 }
 
+impl StorageBackend {
+    /// A non-sensitive backend classification suitable for logs and metrics.
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Local { .. } => "local",
+            Self::S3 { .. } => "s3",
+        }
+    }
+}
+
 /// Embedding provider selected by `EMBEDDINGS_PROVIDER`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderKind {
@@ -29,7 +39,7 @@ pub enum ProviderKind {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EmbeddingsConfig {
     pub provider: ProviderKind,
     pub api_key: String,
@@ -37,7 +47,7 @@ pub struct EmbeddingsConfig {
     pub base_url: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     pub host: String,
     pub port: u16,
@@ -162,4 +172,26 @@ impl Config {
 /// mint and verify under the same name without extra plumbing.
 pub fn instance_name() -> String {
     env::var("INSTANCE_NAME").unwrap_or_else(|_| DEFAULT_INSTANCE_NAME.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StorageBackend;
+
+    #[test]
+    fn storage_backend_kind_never_includes_storage_configuration() {
+        let storage = StorageBackend::S3 {
+            bucket: "private-customer-bucket".to_string(),
+            endpoint: Some("https://minio.internal.example".to_string()),
+            region: "private-region".to_string(),
+            access_key_id: "access-key-secret".to_string(),
+            secret_access_key: "super-secret-value".to_string(),
+        };
+
+        let kind = storage.kind();
+        assert_eq!(kind, "s3");
+        for sensitive in ["bucket", "minio", "access", "secret"] {
+            assert!(!kind.contains(sensitive));
+        }
+    }
 }

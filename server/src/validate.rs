@@ -19,7 +19,7 @@ pub fn reject_reserved_document_fields(data: &Map<String, Value>) -> Result<(), 
         .iter()
         .find(|field| data.contains_key(**field))
     {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::Validation(format!(
             "field {:?} is reserved by Brickbed",
             field
         )));
@@ -35,7 +35,7 @@ pub fn check_reserved_schema_fields(schema: &ProjectSchema) -> Result<(), AppErr
             .iter()
             .find(|field| coll_schema.fields.contains_key(**field))
         {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::Schema(format!(
                 "collection {:?}: field {:?} is reserved by Brickbed",
                 collection, field
             )));
@@ -88,7 +88,7 @@ pub fn valid_index_name(name: &str) -> bool {
 pub fn check_schema_names(schema: &ProjectSchema) -> Result<(), AppError> {
     for (collection, coll_schema) in &schema.collections {
         if !valid_name(collection) {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::Schema(format!(
                 "invalid collection name in schema: {:?}",
                 collection
             )));
@@ -107,13 +107,13 @@ pub fn check_schema_names(schema: &ProjectSchema) -> Result<(), AppError> {
         let mut seen: BTreeSet<(&str, &String)> = BTreeSet::new();
         for (kind, name) in indexes.chain(searches).chain(vectors) {
             if !valid_index_name(name) {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::Schema(format!(
                     "invalid {} name on {:?}: {:?}",
                     kind, collection, name
                 )));
             }
             if !seen.insert((kind, name)) {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::Schema(format!(
                     "duplicate {} name on {:?}: {:?}",
                     kind, collection, name
                 )));
@@ -141,13 +141,13 @@ pub fn check_vector_indexes(schema: &ProjectSchema) -> Result<(), AppError> {
                 .and_then(vector_dims);
 
             let Some(dims) = declared else {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::Schema(format!(
                     "vector index {:?} on {:?}: field {:?} is not a vector field",
                     vidx.name, collection, vidx.field
                 )));
             };
             if dims != u64::from(vidx.dims) {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::Schema(format!(
                     "vector index {:?} on {:?}: declares {} dimensions but field {:?} has {}",
                     vidx.name, collection, vidx.dims, vidx.field, dims
                 )));
@@ -175,7 +175,7 @@ fn vector_dims(validator: &Value) -> Option<u64> {
 
 /// Reject out-of-range vector widths anywhere in a validator tree.
 fn check_vector_dims(collection: &str, path: &str, validator: &Value) -> Result<(), AppError> {
-    let bad = |msg: String| AppError::BadRequest(format!("{} on {:?}: {}", path, collection, msg));
+    let bad = |msg: String| AppError::Schema(format!("{} on {:?}: {}", path, collection, msg));
 
     match validator.get("type").and_then(Value::as_str) {
         Some("vector") => {
@@ -228,9 +228,8 @@ pub fn check_embed_sources(schema: &ProjectSchema) -> Result<(), AppError> {
             let Some(from) = vector.get("from") else {
                 continue;
             };
-            let bad = |msg: String| {
-                AppError::BadRequest(format!("{} on {:?}: {}", field, collection, msg))
-            };
+            let bad =
+                |msg: String| AppError::Schema(format!("{} on {:?}: {}", field, collection, msg));
 
             if vector.get("type").and_then(Value::as_str) != Some("vector") {
                 return Err(bad("\"from\" only applies to a vector field".to_string()));
@@ -278,7 +277,7 @@ pub fn check_embed_sources(schema: &ProjectSchema) -> Result<(), AppError> {
 /// push is opening to the world.
 pub fn check_auth_config(schema: &ProjectSchema) -> Result<(), AppError> {
     if let Some(auth) = &schema.auth {
-        crate::jwt::validate_auth_config(auth).map_err(|e| AppError::BadRequest(e.to_string()))?;
+        crate::jwt::validate_auth_config(auth).map_err(|e| AppError::Schema(e.to_string()))?;
     }
 
     // A public collection is readable by anyone from any origin (CORS is
@@ -306,7 +305,7 @@ pub fn check_auth_config(schema: &ProjectSchema) -> Result<(), AppError> {
         for field in rules.owner_fields() {
             let declared = collection.fields.get(field).map(unwrap_optional);
             if declared.and_then(vector_dims).is_some() {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::Schema(format!(
                     "collection {:?}: owner rule cannot match on {:?}, which is a \
                      server-filled vector field",
                     name, field
@@ -317,7 +316,7 @@ pub fn check_auth_config(schema: &ProjectSchema) -> Result<(), AppError> {
         // Rules are meaningless without a provider to authenticate against.
         let needs_identity = rules.names_an_identity_rule();
         if needs_identity && schema.auth.is_none() {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::Schema(format!(
                 "collection {:?} has rules needing an end-user identity, but the \
                  schema declares no \"auth\" providers",
                 name
@@ -371,20 +370,20 @@ pub fn changes_auth_config(incoming: &ProjectSchema, stored: Option<&ProjectSche
 
 pub fn check_names(project: &str, collection: &str, id: Option<&str>) -> Result<(), AppError> {
     if !valid_name(project) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::Validation(format!(
             "invalid project name: {:?}",
             project
         )));
     }
     if !valid_name(collection) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::Validation(format!(
             "invalid collection name: {:?}",
             collection
         )));
     }
     if let Some(id) = id {
         if !valid_id(id) {
-            return Err(AppError::BadRequest(format!("invalid id: {:?}", id)));
+            return Err(AppError::Validation(format!("invalid id: {:?}", id)));
         }
     }
     Ok(())
@@ -401,8 +400,7 @@ pub fn validate_doc(schema: &CollectionSchema, data: &Map<String, Value>) -> Res
         if is_server_filled(validator) && matches!(value, None | Some(Value::Null)) {
             continue;
         }
-        validate_value(field, validator, value)
-            .map_err(|msg| AppError::BadRequest(format!("validation failed: {}", msg)))?;
+        validate_value(field, validator, value).map_err(AppError::Validation)?;
     }
     Ok(())
 }

@@ -77,6 +77,49 @@ Search responses contain documents with a `_score`. Scores are comparable only i
 
 ## Errors
 
-Errors are JSON objects with an `error` field. Common status codes are `400` for invalid requests, `401` for missing or invalid credentials, `403` for denied access, `404` for missing resources, `422` for a request body of the wrong JSON shape, and `502` for an embedding-provider failure.
+All non-success responses use the **Brickbed error contract v1** and include an
+`X-Request-Id` response header. You may send your own `X-Request-Id` when it
+contains 8–64 ASCII letters, digits, or hyphens; otherwise Brickbed generates
+one. Include the ID when reporting a problem.
+
+```json
+{
+  "error": {
+    "code": "invalid_cursor",
+    "message": "cursor does not match this query"
+  },
+  "requestId": "01KZBKRD04H4K1AGAJX94322BY"
+}
+```
+
+Use `error.code` for program logic. `error.message` explains how to correct a
+request, but its wording is not a compatibility contract. `error.details` is
+optional and only carries safe structured data. Brickbed never returns stack
+traces, storage paths, buckets, document contents, JWT verification reasons,
+or embedding-provider response bodies in this envelope.
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `invalid_request` | 400, 405, or 422 | The request shape, method, or parameters are invalid. |
+| `validation_failed` | 400 | A document name or value violates validation. |
+| `schema_invalid` | 400 | A schema is missing, invalid, or does not declare the requested index/collection. |
+| `invalid_cursor` | 400 | The cursor is malformed or belongs to another query. |
+| `conflict`, `idempotency_conflict` | 409 | A conditional or idempotent write conflicts. Reserved for the corresponding write APIs. |
+| `unauthorized`, `forbidden` | 401, 403 | Authenticate, or use a credential allowed by the collection rule. |
+| `not_found` | 404 | The route or document does not exist. |
+| `limit_exceeded`, `rate_limited` | 413, 429 | Reduce the request size or retry after backoff. Reserved for the corresponding limits. |
+| `unavailable` | 503 | The server cannot currently serve the request; retry it. |
+| `embedding_provider_error` | 502 | The embedding provider failed; retry the write or check provider configuration. |
+| `internal_error` | 500 | An unexpected server error occurred; retry or contact support with `requestId`. |
+
+This is a breaking alpha change from the pre-v1 response:
+
+```json
+{ "error": "invalid cursor" }
+```
+
+Clients parsing the old string must migrate to `error.code`, `error.message`,
+and `requestId`. Official SDKs retain a raw `body` field for proxies or older
+servers, but new application code should use their typed fields.
 
 This document is the current alpha reference, not a long-term API stability guarantee. Breaking changes will be recorded in the [changelog](../CHANGELOG.md).

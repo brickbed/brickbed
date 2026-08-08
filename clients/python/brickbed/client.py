@@ -29,7 +29,7 @@ class BrickbedClient:
         """Push the project schema; enables validation + indexes."""
         response = await self._http.put(f"/v1/{self._project_id}/_schema", json=schema)
         if not response.is_success:
-            raise BrickbedError(response.status_code, response.text)
+            raise BrickbedError.from_response(response)
 
     async def aclose(self) -> None:
         await self._http.aclose()

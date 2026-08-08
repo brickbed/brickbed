@@ -71,15 +71,19 @@ impl Db {
         limit: usize,
         cursor: Option<&str>,
     ) -> Result<(Vec<Document>, Option<String>), AppError> {
-        let schema = self
-            .get_schema(project)
-            .await?
-            .ok_or_else(|| AppError::BadRequest("no schema pushed for project".to_string()))?;
+        let schema = self.get_schema(project).await?.ok_or_else(|| {
+            AppError::Schema(
+                "no schema pushed for project; push a schema before querying".to_string(),
+            )
+        })?;
         let coll_schema = schema.collection(collection).ok_or_else(|| {
-            AppError::BadRequest(format!("collection {:?} not in schema", collection))
+            AppError::Schema(format!(
+                "collection {:?} is not declared in the project schema",
+                collection
+            ))
         })?;
         let idx = coll_schema.index(index_name).ok_or_else(|| {
-            AppError::BadRequest(format!(
+            AppError::Schema(format!(
                 "unknown index {:?} on {:?}",
                 index_name, collection
             ))
@@ -91,11 +95,12 @@ impl Db {
 
         let start: Vec<u8> = match cursor {
             Some(c) => {
-                let mut k = index::decode_cursor(c)
-                    .ok_or_else(|| AppError::BadRequest("invalid cursor".to_string()))?;
+                let mut k = index::decode_cursor(c).ok_or_else(|| {
+                    AppError::InvalidCursor("cursor is not valid hexadecimal".to_string())
+                })?;
                 if !k.starts_with(&prefix) {
-                    return Err(AppError::BadRequest(
-                        "cursor does not match query".to_string(),
+                    return Err(AppError::InvalidCursor(
+                        "cursor does not match this query".to_string(),
                     ));
                 }
                 k.push(0x00);

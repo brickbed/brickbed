@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use axum::async_trait;
-use axum::extract::{FromRequest, FromRequestParts, Request};
+use axum::extract::{FromRequest, FromRequestParts, Query, Request};
 use axum::http::request::Parts;
 use axum::response::IntoResponse;
 use axum::Json;
@@ -44,6 +44,31 @@ where
             // Keep axum's status (400 for malformed JSON, 422 for a body that
             // parses but does not fit the type) and its message, which names
             // the offending field.
+            Err(rejection) => Err(AppError::Rejection(
+                rejection.status(),
+                rejection.body_text(),
+            )),
+        }
+    }
+}
+
+/// Drop-in replacement for `Query<T>` in handler signatures.
+///
+/// Like JSON extraction, Axum's query deserializer otherwise returns its own
+/// plain-text response before the handler can apply the v1 error envelope.
+pub struct AppQuery<T>(pub T);
+
+#[async_trait]
+impl<S, T> FromRequestParts<S> for AppQuery<T>
+where
+    T: DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match Query::<T>::from_request_parts(parts, state).await {
+            Ok(Query(value)) => Ok(AppQuery(value)),
             Err(rejection) => Err(AppError::Rejection(
                 rejection.status(),
                 rejection.body_text(),

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     Json,
 };
@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::db::{Db, Document, Filter, PreconditionCtx, SearchParams};
 use crate::error::AppError;
-use crate::extract::{ApiKey, AppJson, CreateOp, DeleteOp, Guard, ReadOp, UpdateOp};
+use crate::extract::{ApiKey, AppJson, AppQuery, CreateOp, DeleteOp, Guard, ReadOp, UpdateOp};
 use crate::jwt::{HttpJwksFetcher, JwksCache, Principal};
 use crate::keybroker::KeyBroker;
 use crate::rules::{self, Access, Op};
@@ -226,11 +226,11 @@ pub async fn health() -> Json<HealthResponse> {
 }
 
 pub async fn ready(State(state): State<Arc<AppState>>) -> Result<Json<HealthResponse>, AppError> {
-    if let Err(error) = state.db.health_check().await {
-        tracing::error!(%error, "database readiness check failed");
-        return Err(AppError::Rejection(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "not ready".to_string(),
+    if state.db.health_check().await.is_err() {
+        // `IntoResponse` records this with the request ID and a fixed safe
+        // classification. The storage error may contain a bucket or path.
+        return Err(AppError::Unavailable(
+            "database readiness check failed".to_string(),
         ));
     }
     Ok(Json(HealthResponse {
@@ -325,7 +325,7 @@ pub async fn list_documents(
     State(state): State<Arc<AppState>>,
     Guard(access, _principal, _): Guard<ReadOp>,
     Path((project, collection)): Path<(String, String)>,
-    Query(query): Query<ListQuery>,
+    AppQuery(query): AppQuery<ListQuery>,
 ) -> Result<Json<ListResponse>, AppError> {
     check_names(&project, &collection, None)?;
 
@@ -467,7 +467,7 @@ pub async fn put_schema(
     AppJson(schema): AppJson<ProjectSchema>,
 ) -> Result<Json<ProjectSchema>, AppError> {
     if !crate::validate::valid_name(&project) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::Validation(format!(
             "invalid project name: {:?}",
             project
         )));

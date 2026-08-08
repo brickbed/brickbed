@@ -161,13 +161,17 @@ try {
   if (err instanceof BrickbedError) {
     console.log(err.status); // 400
     console.log(err.body);   // raw response body
-    console.log(err.message); // 'Brickbed error (400): unknown search index "nope" on "posts"'
+    console.log(err.code); // 'schema_invalid'
+    console.log(err.requestId); // Correlates with the server log
   }
 }
 ```
 
-Errors carry the HTTP `status` and the raw `body`. Every error the server returns is JSON
-(`{"error": "..."}`), including the rejections raised before a handler runs — a malformed JSON body
+Errors carry HTTP `status`, stable `code`, human `message`, optional safe
+`details`, `requestId`, and the raw `body`; `err.toString()` adds the HTTP
+status and machine code for log output. Every error the server returns uses
+the [v1 error envelope](../../docs/http-api.md#errors), including rejections
+raised before a handler runs — a malformed JSON body
 is a 400 and a body that parses but does not fit the endpoint is a 422, both in that shape — and
 the message is unwrapped into `err.message`. A non-JSON body is still handled rather than throwing
 a parse error, which covers a proxy or gateway answering in place of the server. `get()` is the one
