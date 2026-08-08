@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "baseline_commit": "40abacc8706211adb7880498147a436989d23b48",
+  "baseline_commit": "dc855e26e55260f7a8187f27636f24e259ee3ee3",
   "measurement": {
     "rust": "cargo-llvm-cov 0.8.7",
     "typescript": "bun 1.3.14",
@@ -8,19 +8,19 @@
   },
   "suites": {
     "rust": {
-      "covered_lines": 4203,
-      "executable_lines": 4602,
-      "line_coverage_percent": 91.329856584094
+      "covered_lines": 4622,
+      "executable_lines": 5036,
+      "line_coverage_percent": 91.77918983320096
     },
     "typescript-client": {
-      "covered_lines": 176,
-      "executable_lines": 221,
-      "line_coverage_percent": 79.638009049774
+      "covered_lines": 204,
+      "executable_lines": 249,
+      "line_coverage_percent": 81.92771084337349
     },
     "typescript-schema": {
       "covered_lines": 198,
       "executable_lines": 205,
-      "line_coverage_percent": 96.585365853659
+      "line_coverage_percent": 96.58536585365853
     }
   }
 }

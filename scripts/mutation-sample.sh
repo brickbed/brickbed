@@ -15,6 +15,7 @@ cargo mutants \
   --file src/validate.rs \
   --file src/auth.rs \
   --file src/rules.rs \
+  --jobs 2 \
   --no-shuffle \
   --timeout 120 \
   --output "$output_dir"
