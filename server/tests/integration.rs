@@ -2786,6 +2786,19 @@ async fn malformed_bodies_come_back_as_json_errors() {
         );
     }
 
+    // Query extraction must use the same v1 envelope as JSON extraction.
+    let (status, err) = send(
+        &app,
+        "GET",
+        &format!("{}?limit=not-a-number", base),
+        Some(KEY),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error_code(&err), "invalid_request", "body: {}", err);
+    assert!(err["requestId"].as_str().is_some(), "body: {}", err);
+
     // Syntactically broken JSON, which axum rejects before deserializing.
     let req = Request::builder()
         .method("POST")

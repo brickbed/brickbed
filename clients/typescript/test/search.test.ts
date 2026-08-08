@@ -299,7 +299,8 @@ describe("collection.search errors", () => {
     expect(err.code).toBe("schema_invalid");
     expect(err.details).toEqual({ index: "nope" });
     expect(err.requestId).toBe("request-123");
-    expect(err.message).toBe('Brickbed error (400, schema_invalid): unknown search index "nope"');
+    expect(err.message).toBe('unknown search index "nope"');
+    expect(err.toString()).toBe('BrickbedError (400, schema_invalid): unknown search index "nope"');
   });
 });
 
@@ -321,9 +322,7 @@ describe("error handling", () => {
     expect(err).toBeInstanceOf(BrickbedError);
     expect(err.status).toBe(422);
     expect(err.code).toBe("http_error");
-    expect(err.message).toBe(
-      "Brickbed error (422, http_error): Failed to deserialize the JSON body: invalid type"
-    );
+    expect(err.message).toBe("Failed to deserialize the JSON body: invalid type");
   });
 
   test("an empty error body falls back to the status text", async () => {
@@ -336,7 +335,7 @@ describe("error handling", () => {
 
     expect(err.status).toBe(502);
     expect(err.code).toBe("http_error");
-    expect(err.message).toBe("Brickbed error (502, http_error): Bad Gateway");
+    expect(err.message).toBe("Bad Gateway");
     expect(err.body).toBe("");
   });
 
@@ -351,9 +350,7 @@ describe("error handling", () => {
     expect(err).toBeInstanceOf(BrickbedError);
     expect(err.status).toBe(200);
     expect(err.body).toBe("<html>proxy</html>");
-    expect(err.message).toBe(
-      "Brickbed error (200, invalid_response): expected a JSON response body"
-    );
+    expect(err.message).toBe("expected a JSON response body");
   });
 
   test("an empty success body is an error, not an undefined document", async () => {
@@ -366,9 +363,7 @@ describe("error handling", () => {
 
     expect(err).toBeInstanceOf(BrickbedError);
     expect(err.status).toBe(200);
-    expect(err.message).toBe(
-      "Brickbed error (200, invalid_response): expected a JSON response body"
-    );
+    expect(err.message).toBe("expected a JSON response body");
   });
 
   test("pushSchema reports a plain-text rejection", async () => {
@@ -380,7 +375,7 @@ describe("error handling", () => {
 
     expect(err).toBeInstanceOf(BrickbedError);
     expect(err.code).toBe("http_error");
-    expect(err.message).toBe("Brickbed error (422, http_error): missing collections");
+    expect(err.message).toBe("missing collections");
   });
 
   test("get returns null on 404 and 204 delete resolves", async () => {

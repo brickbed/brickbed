@@ -168,7 +168,8 @@ try {
 ```
 
 Errors carry HTTP `status`, stable `code`, human `message`, optional safe
-`details`, `requestId`, and the raw `body`. Every error the server returns uses
+`details`, `requestId`, and the raw `body`; `err.toString()` adds the HTTP
+status and machine code for log output. Every error the server returns uses
 the [v1 error envelope](../../docs/http-api.md#errors), including rejections
 raised before a handler runs — a malformed JSON body
 is a 400 and a body that parses but does not fit the endpoint is a 422, both in that shape — and

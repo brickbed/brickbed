@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     Json,
 };
@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::db::{Db, Document, Filter, PreconditionCtx, SearchParams};
 use crate::error::AppError;
-use crate::extract::{ApiKey, AppJson, CreateOp, DeleteOp, Guard, ReadOp, UpdateOp};
+use crate::extract::{ApiKey, AppJson, AppQuery, CreateOp, DeleteOp, Guard, ReadOp, UpdateOp};
 use crate::jwt::{HttpJwksFetcher, JwksCache, Principal};
 use crate::keybroker::KeyBroker;
 use crate::rules::{self, Access, Op};
@@ -325,7 +325,7 @@ pub async fn list_documents(
     State(state): State<Arc<AppState>>,
     Guard(access, _principal, _): Guard<ReadOp>,
     Path((project, collection)): Path<(String, String)>,
-    Query(query): Query<ListQuery>,
+    AppQuery(query): AppQuery<ListQuery>,
 ) -> Result<Json<ListResponse>, AppError> {
     check_names(&project, &collection, None)?;
 

@@ -76,7 +76,10 @@ async fn main() {
         .init();
 
     let config = Config::from_env();
-    tracing::info!("Storage backend: {:?}", config.storage);
+    tracing::info!(
+        storage_backend = config.storage.kind(),
+        "storage backend configured"
+    );
 
     let db = Db::open(&config).await.expect("Failed to open database");
     let state = Arc::new(AppState {
@@ -99,8 +102,11 @@ async fn main() {
 
     match Arc::try_unwrap(state) {
         Ok(state) => {
-            if let Err(error) = state.db.close().await {
-                tracing::error!(%error, "database close failed during shutdown");
+            if state.db.close().await.is_err() {
+                tracing::error!(
+                    failure = "database_close_failed",
+                    "database close failed during shutdown"
+                );
             }
         }
         Err(_) => tracing::error!("database still has live references after server shutdown"),

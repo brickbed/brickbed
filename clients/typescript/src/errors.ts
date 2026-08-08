@@ -35,8 +35,15 @@ export class BrickbedError extends Error {
     /** Raw body retained for proxy/intermediary diagnostics. */
     public readonly body: string
   ) {
-    super(`Brickbed error (${status}, ${code}): ${message}`);
+    // `message` is the server's human-facing explanation. Keep it unwrapped:
+    // consumers display it directly, while `code` is the machine contract.
+    super(message);
     this.name = "BrickbedError";
+  }
+
+  /** Decorated diagnostics for logs without changing the human message field. */
+  override toString(): string {
+    return `${this.name} (${this.status}, ${this.code}): ${this.message}`;
   }
 }
 
