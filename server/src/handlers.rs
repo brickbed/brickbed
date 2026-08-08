@@ -226,8 +226,9 @@ pub async fn health() -> Json<HealthResponse> {
 }
 
 pub async fn ready(State(state): State<Arc<AppState>>) -> Result<Json<HealthResponse>, AppError> {
-    if let Err(error) = state.db.health_check().await {
-        tracing::error!(%error, "database readiness check failed");
+    if state.db.health_check().await.is_err() {
+        // `IntoResponse` records this with the request ID and a fixed safe
+        // classification. The storage error may contain a bucket or path.
         return Err(AppError::Unavailable(
             "database readiness check failed".to_string(),
         ));
