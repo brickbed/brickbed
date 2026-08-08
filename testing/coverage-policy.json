@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "changed_line_minimum_percent": 90.0,
+  "new_critical_rust_module_minimum_percent": 95.0,
+  "covered_source_roots": {
+    "rust": "server/src",
+    "typescript-client": "clients/typescript/src",
+    "typescript-schema": "schemas/typescript/src"
+  },
+  "new_critical_rust_module_prefixes": [
+    "server/src/db/",
+    "server/src/storage/",
+    "server/src/backup/",
+    "server/src/recovery/"
+  ],
+  "critical_module_rule": "Before adding or extracting a Rust module that owns durable state, key encoding, recovery, destructive operations, schema authority, or authorization authority, add its directory prefix here in the same pull request. The db/ prefix is included for the storage-coordinator extraction; a renamed module is evaluated at its destination path. This list is a minimum, not an exclusion list.",
+  "excluded_paths": {
+    "generated": [
+      "**/dist/**",
+      "**/target/**",
+      "examples/**"
+    ],
+    "reason": "Generated build output and examples are not production database code; generated output is never included in the coverage reports."
+  }
+}

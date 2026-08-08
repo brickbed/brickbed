@@ -518,3 +518,115 @@ fn validate_value(path: &str, validator: &Value, value: Option<&Value>) -> Resul
         other => Err(format!("{}: unknown validator type {:?}", path, other)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use tracing::{Event, Level, Subscriber};
+    use tracing_subscriber::{layer::Context, prelude::*, registry::LookupSpan, Layer};
+
+    #[derive(Clone)]
+    struct WarningCounter(Arc<AtomicUsize>);
+
+    impl<S> Layer<S> for WarningCounter
+    where
+        S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+    {
+        fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+            if *event.metadata().level() == Level::WARN {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    #[test]
+    fn project_collection_and_document_identifiers_preserve_key_boundaries() {
+        let longest = "a".repeat(64);
+        let too_long = "a".repeat(65);
+        for valid in ["a", "a0", "a-b", "a_b", longest.as_str()] {
+            assert!(valid_name(valid), "rejected valid name {valid:?}");
+        }
+        for invalid in ["", too_long.as_str(), "_private", "A", "a:"] {
+            assert!(!valid_name(invalid), "accepted invalid name {invalid:?}");
+        }
+
+        for valid in ["A", "-", "_", longest.as_str()] {
+            assert!(valid_id(valid), "rejected valid id {valid:?}");
+        }
+        for invalid in ["", ":", too_long.as_str(), "has space"] {
+            assert!(!valid_id(invalid), "accepted invalid id {invalid:?}");
+        }
+    }
+
+    #[test]
+    fn nested_vectors_cannot_bypass_dimension_limits() {
+        let at_limit = serde_json::json!({"type": "vector", "dims": MAX_DIMS});
+        assert!(check_vector_dims("posts", "embedding", &at_limit).is_ok());
+
+        let invalid = serde_json::json!({"type": "vector", "dims": 0});
+        let wrappers = [
+            serde_json::json!({"type": "optional", "inner": invalid}),
+            serde_json::json!({"type": "array", "items": invalid}),
+            serde_json::json!({"type": "object", "properties": {"nested": invalid}}),
+            serde_json::json!({"type": "union", "variants": [invalid]}),
+        ];
+        for wrapper in wrappers {
+            assert!(
+                check_vector_dims("posts", "embedding", &wrapper).is_err(),
+                "accepted invalid nested vector {wrapper}"
+            );
+        }
+    }
+
+    #[test]
+    fn embed_sources_accept_only_nonempty_text_shapes() {
+        assert!(is_text_like(
+            &serde_json::json!({"type": "literal", "value": "fixed"})
+        ));
+        assert!(is_text_like(&serde_json::json!({
+            "type": "union",
+            "variants": [{"type": "string"}, {"type": "array", "items": {"type": "id"}}]
+        })));
+        assert!(!is_text_like(
+            &serde_json::json!({"type": "union", "variants": []})
+        ));
+        assert!(!is_text_like(&serde_json::json!({
+            "type": "union",
+            "variants": [{"type": "string"}, {"type": "number"}]
+        })));
+    }
+
+    #[test]
+    fn only_embedded_vectors_can_be_omitted_from_documents() {
+        let required_vector = serde_json::json!({"type": "vector", "dims": 3});
+        assert!(!is_server_filled(&required_vector));
+        assert!(is_server_filled(&serde_json::json!({
+            "type": "vector", "dims": 3, "from": ["body"]
+        })));
+
+        let schema: CollectionSchema = serde_json::from_value(serde_json::json!({
+            "fields": {"embedding": required_vector}
+        }))
+        .unwrap();
+        assert!(validate_doc(&schema, &Map::new()).is_err());
+    }
+
+    #[test]
+    fn public_reads_emit_an_operator_warning() {
+        let schema: ProjectSchema = serde_json::from_value(serde_json::json!({
+            "collections": {"posts": {"fields": {}, "rules": {"read": "public"}}}
+        }))
+        .unwrap();
+        let warnings = Arc::new(AtomicUsize::new(0));
+        let subscriber = tracing_subscriber::registry().with(WarningCounter(warnings.clone()));
+
+        tracing::subscriber::with_default(subscriber, || {
+            assert!(check_auth_config(&schema).is_ok());
+        });
+        assert_eq!(warnings.load(Ordering::Relaxed), 1);
+    }
+}
