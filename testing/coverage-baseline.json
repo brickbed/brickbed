@@ -8,9 +8,9 @@
   },
   "suites": {
     "rust": {
-      "covered_lines": 4622,
+      "covered_lines": 4608,
       "executable_lines": 5036,
-      "line_coverage_percent": 91.77918983320096
+      "line_coverage_percent": 91.50119142176331
     },
     "typescript-client": {
       "covered_lines": 204,
